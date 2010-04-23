@@ -1,5 +1,6 @@
 #lang scheme
 (require 2htdp/universe
+         htdp/image
          "pfp.ss")
 
 (define ship-rad 1)
@@ -28,23 +29,26 @@
 
 (define-struct screen (time bodies))
 (define initial-screen (make-screen 0 initial-bodies))
+(define es (empty-scene (* scale screen-width) (* scale screen-height)))
 
 (big-bang initial-screen
           (on-tick
            (match-lambda
-             [(struct screen (time bodies))
+             [(struct screen (time (? list? bodies)))
               (define-values (new-bodies collisions) (simulate collide bodies tick-rate))
               (make-screen (+ time tick-rate)
-                           (or (ormap (lambda (x) x) collisions)
+                           (if (ormap (lambda (x) x) collisions)
+                               #f
                                (if (= time (round time))
                                    (append new-bodies fresh-bullets)
-                                   new-bodies)))])
+                                   new-bodies)))]
+             [x x])
            tick-rate)
           (on-key
            (lambda (s key)
              (printf "~S~n" key)
              (match s
-               [(struct screen (time bodies))
+               [(struct screen (time (? list? bodies)))
                 (match bodies
                   [(list-rest ship-b other-bodies)
                    (define new-vel
@@ -57,11 +61,12 @@
                    (make-screen time
                                 (list* (struct-copy body ship-b
                                                     [vel new-vel])
-                                       other-bodies))])])))
+                                       other-bodies))])]
+               [x x])))
           (on-draw
            (match-lambda
-             [(struct screen (time bodies))
-              (for/fold ([s (empty-scene (* scale screen-width) (* scale screen-height))])
+             [(struct screen (time (? list? bodies)))
+              (for/fold ([s es])
                 ([b (in-list bodies)])
                 (match b
                   [(struct body (layer (vector x y) radius vel data))
@@ -70,9 +75,9 @@
                                   [(bullet) bullet])
                                 (* scale x)
                                 (* scale (- screen-height y))
-                                s)]))]))
+                                s)]))]
+             [x es]))
           (stop-when
            (match-lambda
              [(struct screen (time bodies))
               (not bodies)])))
-
